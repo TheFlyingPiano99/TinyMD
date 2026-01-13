@@ -66,6 +66,10 @@ namespace tinymd {
             return m_acceleration;
         }
 
+        [[nodiscard]] vec3 get_rotation() const {
+            return m_rotation;
+        }
+
         [[nodiscard]] scalar get_mass() const {
             return 1.0 / m_reciprocal_mass;
         }
@@ -94,6 +98,7 @@ namespace tinymd {
         vec3 m_position;    // Bohr radius
         vec3 m_velocity;    // Bohr radius per atomic unit of time
         vec3 m_acceleration; // Bohr radius per atomic unit of time squared
+        vec3 m_rotation;    // Not used currently
         scalar m_reciprocal_mass; // Reciprocal of mass in Hartree atomic units
         scalar m_charge;      // Elementary charge
         scalar m_effective_radius; // In Bohr radius
