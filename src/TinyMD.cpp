@@ -22,7 +22,7 @@ namespace tinymd {
                 atom.reset_acceleration();
             }
 
-            // Compute interactions:
+            // Compute interaction forces:
             for (size_t i = 0; i < m_atoms.size(); ++i) {
                 for (size_t j = i + 1; j < m_atoms.size(); ++j) {
                     if (i == j) continue;
@@ -30,7 +30,7 @@ namespace tinymd {
                 }
             }
 
-            // Evolve all atom positions:
+            // Evolve all atom positions using v_n and a_n to get r_n+1 and v_n+1/2:
             std::vector<Atom<T>*> to_remove;
             for (auto& atom : m_atoms) {
                 atom.integrate_position(m_delta_time);
@@ -41,7 +41,7 @@ namespace tinymd {
                 atom.reset_acceleration();
             }
 
-            // Compute interactions again for velocity update:
+            // Compute interaction forces again before velocity update from v_n+1/2 to v_n+1:
             for (size_t i = 0; i < m_atoms.size(); ++i) {
                 for (size_t j = i + 1; j < m_atoms.size(); ++j) {
                     if (i == j) continue;
@@ -49,7 +49,7 @@ namespace tinymd {
                 }
             }
 
-            // Evolve all atom velocity:
+            // Evolve all atom velocity from v_n+1/2 to v_n+1:
             for (auto& atom : m_atoms) {
                 atom.integrate_velocity(m_delta_time);
             }
