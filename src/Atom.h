@@ -19,7 +19,9 @@ namespace tinymd {
         
     public:
         Atom(const vec3& position, const vec3& velocity, scalar reciprocal_mass, scalar effective_radius)
-            : m_position(position), m_velocity(velocity), m_reciprocal_mass(reciprocal_mass), m_charge(1.0), m_effective_radius(effective_radius), m_id(next_id++) {};
+            : m_position(position), m_velocity(velocity), m_acceleration(vec3::filled(static_cast<T>(0))), 
+              m_reciprocal_mass(reciprocal_mass), 
+              m_charge(1.0), m_effective_radius(effective_radius), m_id(next_id++) {};
 
         /*
             * Evolves the atom's position using the Velocity Verlet integration method.
@@ -92,7 +94,6 @@ namespace tinymd {
         vec3 m_position;    // Bohr radius
         vec3 m_velocity;    // Bohr radius per atomic unit of time
         vec3 m_acceleration; // Bohr radius per atomic unit of time squared
-        vec3 m_old_acceleration; // Bohr radius per atomic unit of time squared (For Verlet integration)
         scalar m_reciprocal_mass; // Reciprocal of mass in Hartree atomic units
         scalar m_charge;      // Elementary charge
         scalar m_effective_radius; // In Bohr radius

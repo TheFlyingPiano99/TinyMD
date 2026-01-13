@@ -172,51 +172,49 @@ TEST_CASE("Velocity Verlet is time-reversible", "[velocity-verlet]") {
     initial_vel[2] = 0.7;
     
     scalar mass = 1.5;
-    scalar dt = 0.01;
+    scalar dt = 0.01;  
+    scalar k = 1.0;  // Spring constant for harmonic oscillator
 
     Atom<scalar> atom(initial_pos, initial_vel, 1.0 / mass, 1.0);
 
-    // Constant force
-    vec3 force = vec3::filled(0.0);
-    force[0] = 1.0;
-    force[1] = -0.5;
-    force[2] = 0.2;
-
-    // Forward integration
-    int steps = 100;
+    // Forward integration with harmonic force F = -k*r
+    int steps = 50;
     for (int i = 0; i < steps; ++i) {
+        vec3 force = -k * atom.get_position();
         atom.reset_acceleration();
         atom.apply_force(force, dt);
         atom.integrate_position(dt);
+        
+        force = -k * atom.get_position();
         atom.reset_acceleration();
         atom.apply_force(force, dt);
         atom.integrate_velocity(dt);
     }
 
-    vec3 mid_pos = atom.get_position();
-    vec3 mid_vel = atom.get_velocity();
-
-    // Backward integration (reverse velocity and integrate with -dt)
-    vec3 reversed_vel = -mid_vel;
-    Atom<scalar> atom_backward(mid_pos, reversed_vel, 1.0 / mass, 1.0);
-
+    // Backward integration (same atom, just use -dt)
     for (int i = 0; i < steps; ++i) {
-        atom_backward.reset_acceleration();
-        atom_backward.apply_force(force, -dt);
-        atom_backward.integrate_position(-dt);
-        atom_backward.reset_acceleration();
-        atom_backward.apply_force(force, -dt);
-        atom_backward.integrate_velocity(-dt);
+        vec3 force = -k * atom.get_position();
+        atom.reset_acceleration();
+        atom.apply_force(force, -dt);
+        atom.integrate_position(-dt);
+        
+        force = -k * atom.get_position();
+        atom.reset_acceleration();
+        atom.apply_force(force, -dt);
+        atom.integrate_velocity(-dt);
     }
 
-    // Should return to initial position (with reversed velocity)
-    REQUIRE(atom_backward.get_position()[0] == Approx(initial_pos[0]).epsilon(1e-8));
-    REQUIRE(atom_backward.get_position()[1] == Approx(initial_pos[1]).epsilon(1e-8));
-    REQUIRE(atom_backward.get_position()[2] == Approx(initial_pos[2]).epsilon(1e-8));
+    vec3 final_pos = atom.get_position();
+    vec3 final_vel = atom.get_velocity();
     
-    REQUIRE(atom_backward.get_velocity()[0] == Approx(-initial_vel[0]).epsilon(1e-8));
-    REQUIRE(atom_backward.get_velocity()[1] == Approx(-initial_vel[1]).epsilon(1e-8));
-    REQUIRE(atom_backward.get_velocity()[2] == Approx(-initial_vel[2]).epsilon(1e-8));
+    // Should return to initial conditions (time-reversibility)
+    REQUIRE(final_pos.eval_at(0, 0) == Approx(initial_pos.eval_at(0, 0)).epsilon(1e-10));
+    REQUIRE(final_pos.eval_at(1, 0) == Approx(initial_pos.eval_at(1, 0)).epsilon(1e-10));
+    REQUIRE(final_pos.eval_at(2, 0) == Approx(initial_pos.eval_at(2, 0)).epsilon(1e-10));
+    
+    REQUIRE(final_vel.eval_at(0, 0) == Approx(initial_vel.eval_at(0, 0)).epsilon(1e-10));
+    REQUIRE(final_vel.eval_at(1, 0) == Approx(initial_vel.eval_at(1, 0)).epsilon(1e-10));
+    REQUIRE(final_vel.eval_at(2, 0) == Approx(initial_vel.eval_at(2, 0)).epsilon(1e-10));
 }
 
 TEST_CASE("Two particles with Coulomb interaction - momentum conservation", "[coulomb]") {
