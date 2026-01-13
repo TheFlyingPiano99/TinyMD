@@ -1,0 +1,115 @@
+#include "TinyMD.h"
+#include <print>
+#include <format>
+
+namespace tinymd {
+
+    auto to_string(const auto& vec) {
+        return std::format("({}, {}, {})", static_cast<double>(vec.x()), static_cast<double>(vec.y()), static_cast<double>(vec.z()));
+    };
+
+    template<tinyla::RealType T>
+    MDSimulator<T>::MDSimulator() {
+        // Constructor implementation (if any)
+    }
+
+    template<tinyla::RealType T>
+    void MDSimulator<T>::run() {
+        for (uint32_t step = 0; step < m_step_count; ++step) {
+
+            // Reset accelerations:
+            for (auto& atom : m_atoms) {
+                atom.reset_acceleration();
+            }
+
+            // Compute interactions:
+            for (size_t i = 0; i < m_atoms.size(); ++i) {
+                for (size_t j = i + 1; j < m_atoms.size(); ++j) {
+                    if (i == j) continue;
+                    interact_atoms(m_atoms[i], m_atoms[j]);
+                }
+            }
+
+            // Evolve all atom positions:
+            std::vector<Atom<T>*> to_remove;
+            for (auto& atom : m_atoms) {
+                atom.integrate_position(m_delta_time);
+            }
+
+            // Reset accelerations:
+            for (auto& atom : m_atoms) {
+                atom.reset_acceleration();
+            }
+
+            // Compute interactions again for velocity update:
+            for (size_t i = 0; i < m_atoms.size(); ++i) {
+                for (size_t j = i + 1; j < m_atoms.size(); ++j) {
+                    if (i == j) continue;
+                    interact_atoms(m_atoms[i], m_atoms[j]);
+                }
+            }
+
+            // Evolve all atom velocity:
+            for (auto& atom : m_atoms) {
+                atom.integrate_velocity(m_delta_time);
+            }
+
+            // Check for atoms to remove (e.g., if they went out of bounds)
+            for (auto& atom : m_atoms) {
+                auto status = atom.get_status();
+                if (status != 0) { // Example condition
+                    to_remove.push_back(&atom);
+                }
+            }
+
+            // Remove atoms that need to be removed:
+            for (const auto atom_ptr : to_remove) {
+                auto it = std::find(m_atoms.begin(), m_atoms.end(), *atom_ptr);
+                if (it != m_atoms.end()) {
+                    m_atoms.erase(it);
+                }
+            }
+
+            // Debug print:
+            if (m_print_debug) {
+                std::println("Step {}\nNo. of atoms = {}", step, m_atoms.size());
+                for (const auto& atom : m_atoms) {
+                    std::println("Atom ID: {}, r = {}, r' = {}, r'' = {}", atom.get_id(), to_string(atom.get_position()), to_string(atom.get_velocity()), to_string(atom.get_acceleration()));
+                }
+            }
+        }
+    }
+
+    template<tinyla::RealType T>
+    void MDSimulator<T>::interact_atoms(Atom<T>& atom1, Atom<T>& atom2) {
+        // Coulomb interaction
+        constexpr T k_e = static_cast<T>(1.0); // Coulomb constant in Hartree atomic units
+        
+        // Calculate distance vector from atom2 to atom1
+        vec3 r_vec = atom1.get_position() - atom2.get_position();
+        T r =norm(r_vec);
+        T r_squared = r * r;
+
+        // Avoid division by zero
+        if (r < static_cast<T>(1e-10)) {
+            return;
+        }
+        
+        // Calculate Coulomb force magnitude: F = k * q1 * q2 / r²
+        T q1 = atom1.get_charge();
+        T q2 = atom2.get_charge();
+        T force_magnitude = k_e * q1 * q2 / r_squared;
+        
+        // Force direction (unit vector)
+        vec3 force_direction = r_vec / r;
+        
+        // Force vector
+        vec3 force = force_direction * force_magnitude;
+        
+        // Apply forces (Newton's third law: equal and opposite)
+        atom1.apply_force(force, m_delta_time);
+        atom2.apply_force(-force, m_delta_time);
+    }
+
+
+} // namespace TinyMD
