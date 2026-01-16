@@ -55,11 +55,11 @@ TEST_CASE("Single particle with constant acceleration", "[velocity-verlet]") {
 
     int steps = 100;
     for (int i = 0; i < steps; ++i) {
-        atom.reset_acceleration();
-        atom.apply_force(force, dt);
+        atom.reset_force_and_torque();
+        atom.apply_force(force);
         atom.integrate_position(dt);
-        atom.reset_acceleration();
-        atom.apply_force(force, dt);
+        atom.reset_force_and_torque();
+        atom.apply_force(force);
         atom.integrate_velocity(dt);
     }
 
@@ -96,17 +96,17 @@ TEST_CASE("Simple harmonic oscillator - energy conservation", "[velocity-verlet]
     int steps = 1000;
     for (int i = 0; i < steps; ++i) {
         // Apply spring force
-        atom.reset_acceleration();
+        atom.reset_force_and_torque();
         vec3 force = vec3::filled(0.0);
         force[0] = -k * atom.get_position()[0];
-        atom.apply_force(force, dt);
+        atom.apply_force(force);
         
         atom.integrate_position(dt);
         
         // Recompute force at new position
-        atom.reset_acceleration();
+        atom.reset_force_and_torque();
         force[0] = -k * atom.get_position()[0];
-        atom.apply_force(force, dt);
+        atom.apply_force(force);
         
         atom.integrate_velocity(dt);
     }
@@ -140,11 +140,11 @@ TEST_CASE("Particle in uniform gravitational field", "[velocity-verlet]") {
 
     int steps = 200;
     for (int i = 0; i < steps; ++i) {
-        atom.reset_acceleration();
-        atom.apply_force(gravity_force, dt);
+        atom.reset_force_and_torque();
+        atom.apply_force(gravity_force);
         atom.integrate_position(dt);
-        atom.reset_acceleration();
-        atom.apply_force(gravity_force, dt);
+        atom.reset_force_and_torque();
+        atom.apply_force(gravity_force);
         atom.integrate_velocity(dt);
     }
 
@@ -181,26 +181,26 @@ TEST_CASE("Velocity Verlet is time-reversible", "[velocity-verlet]") {
     int steps = 50;
     for (int i = 0; i < steps; ++i) {
         vec3 force = -k * atom.get_position();
-        atom.reset_acceleration();
-        atom.apply_force(force, dt);
+        atom.reset_force_and_torque();
+        atom.apply_force(force);
         atom.integrate_position(dt);
         
         force = -k * atom.get_position();
-        atom.reset_acceleration();
-        atom.apply_force(force, dt);
+        atom.reset_force_and_torque();
+        atom.apply_force(force);
         atom.integrate_velocity(dt);
     }
 
     // Backward integration (same atom, just use -dt)
     for (int i = 0; i < steps; ++i) {
         vec3 force = -k * atom.get_position();
-        atom.reset_acceleration();
-        atom.apply_force(force, -dt);
+        atom.reset_force_and_torque();
+        atom.apply_force(force);
         atom.integrate_position(-dt);
         
         force = -k * atom.get_position();
-        atom.reset_acceleration();
-        atom.apply_force(force, -dt);
+        atom.reset_force_and_torque();
+        atom.apply_force(force);
         atom.integrate_velocity(-dt);
     }
 

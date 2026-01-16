@@ -21,6 +21,7 @@ endif()
 # Create test executable
 add_executable(TinyMD_tests 
     test_velocity_verlet.cpp
+    test_rotation_matrix.cpp
     ../src/TinyMD.cpp
 )
 
