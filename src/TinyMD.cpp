@@ -5,8 +5,13 @@
 
 namespace tinymd {
 
-    auto to_string(const auto& vec) {
+    auto to_string(const tinyla::dvec3& vec) {
         return std::format("({}, {}, {})", static_cast<double>(vec.x()), static_cast<double>(vec.y()), static_cast<double>(vec.z()));
+    };
+
+    template<typename T>
+    auto to_string(const tinyla::Quaternion<T>& quat) {
+        return std::format("({} + i{} + j{} + k{})", static_cast<double>(quat.real()), static_cast<double>(quat.i()), static_cast<double>(quat.j()), static_cast<double>(quat.k()));
     };
 
     template<tinyla::RealType T>
@@ -18,9 +23,9 @@ namespace tinymd {
     void MDSimulator<T>::run() {
         for (m_current_step = 0; m_current_step < m_step_count; ++m_current_step) {
 
-            // Reset accelerations:
+            // Reset forces and torques before recalculating:
             for (auto& atom : m_atoms) {
-                atom.reset_acceleration();
+                atom.reset_force_and_torque();
             }
 
             // Compute interaction forces:
@@ -34,12 +39,12 @@ namespace tinymd {
             // Evolve all atom positions using v_n and a_n to get r_n+1 and v_n+1/2:
             std::vector<Atom<T>*> to_remove;
             for (auto& atom : m_atoms) {
-                atom.integrate_position(m_delta_time);
+                atom.integrate_position_and_rotation(m_delta_time);
             }
 
-            // Reset accelerations:
+            // Reset forces and torques before recalculating:
             for (auto& atom : m_atoms) {
-                atom.reset_acceleration();
+                atom.reset_force_and_torque();
             }
 
             // Compute interaction forces again before velocity update from v_n+1/2 to v_n+1:
@@ -52,7 +57,7 @@ namespace tinymd {
 
             // Evolve all atom velocity from v_n+1/2 to v_n+1:
             for (auto& atom : m_atoms) {
-                atom.integrate_velocity(m_delta_time);
+                atom.integrate_velocity_and_angular_velocity(m_delta_time);
             }
 
             // Check for atoms to remove (e.g., if they went out of bounds)
@@ -94,7 +99,7 @@ namespace tinymd {
         
         // Calculate distance vector from atom2 to atom1
         vec3 r_vec = atom1.get_position() - atom2.get_position();
-        T r =norm(r_vec);
+        T r = norm(r_vec);
         T r_squared = r * r;
 
         // Avoid division by zero
@@ -116,12 +121,16 @@ namespace tinymd {
         // Apply forces (Newton's third law: equal and opposite)
         atom1.apply_force(force);
         atom2.apply_force(-force);
+
+        // Test torque by explicitly applying:
+        atom1.apply_torque_in_world_frame(vec3{0.01,0,0});
+        atom2.apply_torque_in_world_frame(vec3{0.01,0,0});
     }
 
     template<tinyla::RealType T>
     void MDSimulator<T>::print_atom_states() const {
         for (const auto& atom : m_atoms) {
-            std::println("Atom ID: {}, r = {}, r' = {}, r'' = {}", atom.get_id(), to_string(atom.get_position()), to_string(atom.get_velocity()), to_string(atom.get_acceleration()));
+            std::println("Atom ID: {}, r = {}, r' = {}, q = {}, omega = {}", atom.get_id(), to_string(atom.get_position()), to_string(atom.get_velocity()), to_string(atom.get_rotation()), to_string(atom.get_angular_velocity()));
         }
     }
 
@@ -135,20 +144,21 @@ namespace tinymd {
 
         if (!append) {
             // Write header
-            file << "position_x,position_y,position_z,rotation_x,rotation_y,rotation_z,atom_id,simulation_step\n";
+            file << "position_x,position_y,position_z,rotation_r,rotation_i,rotation_j,rotation_k,atom_id,simulation_step\n";
         }
 
         // Write atom positions
         for (const auto& atom : m_atoms) {
             auto pos = atom.get_position();
-            auto rot = atom.get_euler_angles();
-            file << std::format("{},{},{},{},{},{},{},{}\n", 
+            auto rot = atom.get_rotation();
+            file << std::format("{},{},{},{},{},{},{},{},{}\n", 
                 static_cast<double>(pos.eval_at(0, 0)),
                 static_cast<double>(pos.eval_at(1, 0)),
                 static_cast<double>(pos.eval_at(2, 0)),
                 static_cast<double>(rot.eval_at(0, 0)),
                 static_cast<double>(rot.eval_at(1, 0)),
                 static_cast<double>(rot.eval_at(2, 0)),
+                static_cast<double>(rot.eval_at(3, 0)),
                 atom.get_id(),
                 m_current_step
             );

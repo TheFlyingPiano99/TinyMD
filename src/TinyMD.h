@@ -30,6 +30,10 @@ namespace tinymd {
             m_atoms.push_back(std::forward<Atom<T>>(atom));
         }
 
+        auto get_atoms() const {
+            return m_atoms;
+        }
+
         void set_time_step(scalar delta_time) {
             m_delta_time = delta_time;
         }

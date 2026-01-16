@@ -30,7 +30,7 @@ int main(int argc, char** argv) {
     simulator.add_atom(std::move(atom2));
 
     simulator.set_time_step(0.1);
-    simulator.set_step_count(1000);
+    simulator.set_step_count(10000);
 
     // Export atom positions to CSV for visualization in Blender
     auto output_dir = std::filesystem::path("E:/coding/CppProjects/TinyMD/output");
