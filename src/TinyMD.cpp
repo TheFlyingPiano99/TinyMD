@@ -77,7 +77,7 @@ namespace tinymd {
             }
 
             // Debug print:
-            if (m_print_debug) {
+            if (m_print_debug && (m_current_step % m_print_interval == 0)) {
                 std::println("Step {}\nNo. of atoms = {}", m_current_step, m_atoms.size());
                 print_atom_states();
             }
@@ -123,8 +123,9 @@ namespace tinymd {
         atom2.apply_force(-force);
 
         // Test torque by explicitly applying:
-        atom1.apply_torque_in_world_frame(vec3{0.01,0,0});
-        atom2.apply_torque_in_world_frame(vec3{0.01,0,0});
+        double sign = ((m_step_count / 100) % 2 == 0) ? 1.0 : -1.0;
+        atom1.apply_torque_in_world_frame(sign * vec3{0.01, 0.02, 0.03});
+        atom2.apply_torque_in_world_frame(sign * vec3{0.01, 0.02, 0.03});
     }
 
     template<tinyla::RealType T>
