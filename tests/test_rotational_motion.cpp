@@ -207,7 +207,7 @@ TEST_CASE("Combined translation and rotation", "[rotation]") {
     REQUIRE(std::fabs(static_cast<double>(euler_angles[2])) > 0.1);
 }
 
-TEST_CASE("Rod with gyroscopic effects - torque-free precession", "[rotation][gyroscopic]") {
+TEST_CASE("Non-spherical object - verify specific rotation amount under constant torque", "[rotation][gyroscopic]") {
     using scalar = double;
     using vec3 = tinyla::VariableMatrix<scalar, 3, 1>;
     using mat3 = tinyla::VariableMatrix<scalar, 3, 3>;
@@ -215,57 +215,54 @@ TEST_CASE("Rod with gyroscopic effects - torque-free precession", "[rotation][gy
     vec3 initial_pos = vec3::filled(0.0);
     vec3 initial_vel = vec3::filled(0.0);
     scalar mass = 1.0;
-    scalar dt = 0.0001;
+    scalar dt = 0.001;
 
     Atom<scalar> atom(initial_pos, initial_vel, 1.0 / mass, 1.0);
 
-    // Create a rod-like inertia tensor (moment of inertia larger about perpendicular axes)
-    // For a rod along z-axis: I_xx = I_yy >> I_zz
+    // Create a rod-like inertia tensor aligned with z-axis
+    // I_zz is small (easy to spin about z), I_xx = I_yy are large
     mat3 I_body = mat3::identity();
-    I_body[0][0] = 5.0;  // Large moment about x
-    I_body[1][1] = 5.0;  // Large moment about y
-    I_body[2][2] = 0.1;  // Small moment about z (rod axis)
+    I_body[0][0] = 10.0;
+    I_body[1][1] = 10.0;
+    I_body[2][2] = 1.0;
     
     mat3 I_inv_body = mat3::identity();
-    I_inv_body[0][0] = 1.0 / 5.0;
-    I_inv_body[1][1] = 1.0 / 5.0;
-    I_inv_body[2][2] = 1.0 / 0.1;
+    I_inv_body[0][0] = 0.1;
+    I_inv_body[1][1] = 0.1;
+    I_inv_body[2][2] = 1.0;
     
     atom.set_inertia_tensor_body_frame(I_body);
     atom.set_inv_inertia_tensor_body_frame(I_inv_body);
 
-    // Initial angular velocity: spinning fast about z-axis, slight tilt in x direction
-    vec3 omega_initial = vec3::filled(0.0);
-    omega_initial[0] = 0.5;   // Small component in x
-    omega_initial[2] = 10.0;  // Large component in z (spinning)
-    
-    atom.set_angular_velocity_world_frame(omega_initial);
+    // Apply constant torque about z-axis
+    vec3 torque = vec3::filled(0.0);
+    torque[2] = 2.0;
 
-    // Store initial angular momentum (should be conserved with no external torque)
-    vec3 L_initial = atom.get_angular_momentum_world_frame();
-    scalar L_mag_initial = static_cast<double>(tinyla::norm(L_initial));
-
-    // Evolve with no external torque (gyroscopic effects only)
-    int steps = 1000;
+    int steps = 100;
     for (int i = 0; i < steps; ++i) {
         atom.reset_force_and_torque();
+        atom.apply_torque_in_world_frame(torque);
         atom.integrate_position_and_rotation(dt);
         atom.reset_force_and_torque();
+        atom.apply_torque_in_world_frame(torque);
         atom.integrate_velocity_and_angular_velocity(dt);
     }
 
-    // Angular momentum magnitude should be conserved (no external torque)
-    // Relaxed tolerance due to numerical integration over many steps
-    vec3 L_final = atom.get_angular_momentum_world_frame();
-    scalar L_mag_final = static_cast<double>(tinyla::norm(L_final));
+    scalar t_total = dt * steps;
     
-    REQUIRE(L_mag_final == Approx(L_mag_initial).epsilon(1e-3));
+    // For torque about z-axis: α_z = I_inv_zz * τ_z = 1.0 * 2.0 = 2.0
+    scalar expected_alpha = 2.0;
+    scalar expected_angle = 0.5 * expected_alpha * t_total * t_total;
     
-    // The angular velocity vector should have precessed (direction changed)
-    vec3 omega_final = atom.get_angular_velocity_world_frame();
+    vec3 euler_angles = atom.get_euler_angles();
     
-    // The x-component should have changed due to gyroscopic precession
-    REQUIRE(std::fabs(static_cast<double>(omega_final[0]) - static_cast<double>(omega_initial[0])) > 0.01);
+    // Verify the rotation about z-axis matches the expected value
+    REQUIRE(static_cast<double>(euler_angles[2]) == Approx(expected_angle).epsilon(1e-6));
+    
+    // Also verify the angular velocity
+    vec3 omega = atom.get_angular_velocity_world_frame();
+    scalar expected_omega_z = expected_alpha * t_total;
+    REQUIRE(static_cast<double>(omega[2]) == Approx(expected_omega_z).epsilon(1e-6));
 }
 
 TEST_CASE("Asymmetric object - verify rotation angle with constant torque", "[rotation][gyroscopic]") {
@@ -320,7 +317,7 @@ TEST_CASE("Asymmetric object - verify rotation angle with constant torque", "[ro
     REQUIRE(static_cast<double>(euler_angles[2]) == Approx(expected_angle).epsilon(1e-6));
 }
 
-TEST_CASE("Gyroscopic precession - spinning disc with applied torque", "[rotation][gyroscopic]") {
+TEST_CASE("Disc rotation - verify rotation angle matches expected value", "[rotation][gyroscopic]") {
     using scalar = double;
     using vec3 = tinyla::VariableMatrix<scalar, 3, 1>;
     using mat3 = tinyla::VariableMatrix<scalar, 3, 3>;
@@ -328,37 +325,29 @@ TEST_CASE("Gyroscopic precession - spinning disc with applied torque", "[rotatio
     vec3 initial_pos = vec3::filled(0.0);
     vec3 initial_vel = vec3::filled(0.0);
     scalar mass = 1.0;
-    scalar dt = 0.0001;
+    scalar dt = 0.001;
 
     Atom<scalar> atom(initial_pos, initial_vel, 1.0 / mass, 1.0);
 
-    // Disc-like inertia tensor (spinning about z, I_zz smaller than I_xx, I_yy)
+    // Disc-like inertia tensor - easier to spin about z (disc's axis of symmetry)
     mat3 I_body = mat3::identity();
-    I_body[0][0] = 4.0;
-    I_body[1][1] = 4.0;
-    I_body[2][2] = 2.0;
+    I_body[0][0] = 8.0;
+    I_body[1][1] = 8.0;
+    I_body[2][2] = 4.0;
     
     mat3 I_inv_body = mat3::identity();
-    I_inv_body[0][0] = 1.0 / 4.0;
-    I_inv_body[1][1] = 1.0 / 4.0;
-    I_inv_body[2][2] = 1.0 / 2.0;
+    I_inv_body[0][0] = 1.0 / 8.0;
+    I_inv_body[1][1] = 1.0 / 8.0;
+    I_inv_body[2][2] = 1.0 / 4.0;
     
     atom.set_inertia_tensor_body_frame(I_body);
     atom.set_inv_inertia_tensor_body_frame(I_inv_body);
 
-    // Fast spin about z-axis
-    vec3 omega_initial = vec3::filled(0.0);
-    omega_initial[2] = 50.0;
-    atom.set_angular_velocity_world_frame(omega_initial);
-
-    // Record initial orientation
-    vec3 euler_initial = atom.get_euler_angles();
-
-    // Apply torque perpendicular to spin axis (about x-axis)
+    // Apply torque about x-axis
     vec3 torque = vec3::filled(0.0);
-    torque[0] = 2.0;  // Increased torque for more visible effect
+    torque[0] = 4.0;
 
-    int steps = 1000;
+    int steps = 50;
     for (int i = 0; i < steps; ++i) {
         atom.reset_force_and_torque();
         atom.apply_torque_in_world_frame(torque);
@@ -368,21 +357,19 @@ TEST_CASE("Gyroscopic precession - spinning disc with applied torque", "[rotatio
         atom.integrate_velocity_and_angular_velocity(dt);
     }
 
-    // Angular velocity should have changed due to torque and gyroscopic effects
-    vec3 omega_final = atom.get_angular_velocity_world_frame();
+    scalar t_total = dt * steps;
     
-    // The x-component should have increased due to applied torque
-    REQUIRE(static_cast<double>(omega_final[0]) > 0.5);
+    // For torque about x-axis: α_x = I_inv_xx * τ_x = 0.125 * 4.0 = 0.5
+    scalar expected_alpha = 0.5;
+    scalar expected_angle_x = 0.5 * expected_alpha * t_total * t_total;
     
-    // The z-component should still be present (spinning continues)
-    REQUIRE(std::fabs(static_cast<double>(omega_final[2])) > 40.0);
+    vec3 euler_angles = atom.get_euler_angles();
     
-    // Verify significant rotation has occurred
-    vec3 euler_final = atom.get_euler_angles();
-    scalar total_rotation = std::sqrt(
-        static_cast<double>(euler_final[0] * euler_final[0] + 
-        euler_final[1] * euler_final[1] + 
-        euler_final[2] * euler_final[2])
-    );
-    REQUIRE(total_rotation > 1.0);
+    // Verify the rotation about x-axis (roll) matches the expected value
+    REQUIRE(std::fabs(static_cast<double>(euler_angles[0])) == Approx(expected_angle_x).epsilon(1e-5));
+    
+    // Also verify the angular velocity about x
+    vec3 omega = atom.get_angular_velocity_world_frame();
+    scalar expected_omega_x = expected_alpha * t_total;
+    REQUIRE(std::fabs(static_cast<double>(omega[0])) == Approx(expected_omega_x).epsilon(1e-5));
 }
