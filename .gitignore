@@ -43,3 +43,4 @@ thumbs.db
 *.rej
 *.log
 *.log.*
+*.csv

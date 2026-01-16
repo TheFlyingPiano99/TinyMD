@@ -114,8 +114,8 @@ namespace tinymd {
         vec3 force = force_direction * force_magnitude;
         
         // Apply forces (Newton's third law: equal and opposite)
-        atom1.apply_force(force, m_delta_time);
-        atom2.apply_force(-force, m_delta_time);
+        atom1.apply_force(force);
+        atom2.apply_force(-force);
     }
 
     template<tinyla::RealType T>
@@ -141,7 +141,7 @@ namespace tinymd {
         // Write atom positions
         for (const auto& atom : m_atoms) {
             auto pos = atom.get_position();
-            auto rot = atom.get_rotation();
+            auto rot = atom.get_euler_angles();
             file << std::format("{},{},{},{},{},{},{},{}\n", 
                 static_cast<double>(pos.eval_at(0, 0)),
                 static_cast<double>(pos.eval_at(1, 0)),
