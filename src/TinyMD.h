@@ -71,6 +71,7 @@ namespace tinymd {
         uint32_t m_current_step = 0;
         scalar m_delta_time = static_cast<scalar>(0.001);
         bool m_print_debug = true;
+        uint32_t m_print_interval = 100;
         std::string m_export_path;
     };
 

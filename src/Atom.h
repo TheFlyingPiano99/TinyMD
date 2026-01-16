@@ -50,7 +50,7 @@ namespace tinymd {
                 
                 // Update velocity (half step): v_n+1/2 = v_n + 1/2 * a_n * dt
                 m_velocity += static_cast<T>(0.5) * acceleration * delta_time;
-                
+                clamp_velocity();   
                 // Update position using half-step velocity: r_n+1 = r_n + v_n+1/2 * dt
                 m_position += m_velocity * delta_time;
             }
@@ -72,6 +72,7 @@ namespace tinymd {
                 
                 // Update angular velocity (half step): ω_n+1/2 = ω_n + 1/2 * α_n * dt
                 m_angular_velocity_world_frame += static_cast<T>(0.5) * angular_acceleration_world_frame * delta_time;
+                clamp_angular_velocity();
                 
                 // Update rotation using quaternion derivative: dq/dt = 1/2 * ω_quat * q
                 // where ω_quat is the angular velocity as a pure quaternion (w=0, v=ω)
@@ -97,6 +98,7 @@ namespace tinymd {
             {
                 auto acceleration = m_force * m_reciprocal_mass;
                 m_velocity += static_cast<T>(0.5) * acceleration * delta_time;    // v_n+1 = v_n+1/2 + 1/2 * a_n+1 * dt
+                clamp_velocity();
             }
 
             // Rotational motion:
@@ -116,6 +118,21 @@ namespace tinymd {
                 
                 // Complete velocity update: ω_n+1 = ω_n+1/2 + 1/2 * α_n+1 * dt
                 m_angular_velocity_world_frame += static_cast<T>(0.5) * angular_acceleration_world_frame * delta_time;
+                clamp_angular_velocity();
+            }
+        }
+
+        inline void clamp_velocity() {
+            float n = norm(m_velocity);
+            if (n > max_velocity) {
+                m_velocity = (m_velocity / n) * max_velocity;
+            }
+        }
+
+        inline void clamp_angular_velocity() {
+            float ang_n = norm(m_angular_velocity_world_frame);
+            if (ang_n > max_angular_velocity) {
+                m_angular_velocity_world_frame = (m_angular_velocity_world_frame / ang_n) * max_angular_velocity;
             }
         }
 
@@ -241,6 +258,8 @@ namespace tinymd {
         scalar m_effective_radius; // In Bohr radius
         uint32_t m_id;
         static inline uint32_t next_id = 0;
+        static constexpr auto max_velocity = 100.0;
+        static constexpr auto max_angular_velocity = 100.0;
     };
 
     template Atom<double>;
