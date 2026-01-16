@@ -24,8 +24,8 @@ TEST_CASE("Single particle free motion (no forces)", "[velocity-verlet]") {
     // Evolve for several time steps without forces
     int steps = 100;
     for (int i = 0; i < steps; ++i) {
-        atom.integrate_position(dt);
-        atom.integrate_velocity(dt);
+        atom.integrate_position_and_rotation(dt);
+        atom.integrate_velocity_and_angular_velocity(dt);
     }
 
     // Analytical solution: x(t) = x0 + v0*t (no acceleration)
@@ -57,10 +57,10 @@ TEST_CASE("Single particle with constant acceleration", "[velocity-verlet]") {
     for (int i = 0; i < steps; ++i) {
         atom.reset_force_and_torque();
         atom.apply_force(force);
-        atom.integrate_position(dt);
+        atom.integrate_position_and_rotation(dt);
         atom.reset_force_and_torque();
         atom.apply_force(force);
-        atom.integrate_velocity(dt);
+        atom.integrate_velocity_and_angular_velocity(dt);
     }
 
     // Analytical solution for constant acceleration:
@@ -101,14 +101,14 @@ TEST_CASE("Simple harmonic oscillator - energy conservation", "[velocity-verlet]
         force[0] = -k * atom.get_position()[0];
         atom.apply_force(force);
         
-        atom.integrate_position(dt);
+        atom.integrate_position_and_rotation(dt);
         
         // Recompute force at new position
         atom.reset_force_and_torque();
         force[0] = -k * atom.get_position()[0];
         atom.apply_force(force);
         
-        atom.integrate_velocity(dt);
+        atom.integrate_velocity_and_angular_velocity(dt);
     }
 
     // Check energy conservation
@@ -142,10 +142,10 @@ TEST_CASE("Particle in uniform gravitational field", "[velocity-verlet]") {
     for (int i = 0; i < steps; ++i) {
         atom.reset_force_and_torque();
         atom.apply_force(gravity_force);
-        atom.integrate_position(dt);
+        atom.integrate_position_and_rotation(dt);
         atom.reset_force_and_torque();
         atom.apply_force(gravity_force);
-        atom.integrate_velocity(dt);
+        atom.integrate_velocity_and_angular_velocity(dt);
     }
 
     // Analytical solution: y(t) = y0 - 0.5*g*t^2, v(t) = -g*t
@@ -183,12 +183,12 @@ TEST_CASE("Velocity Verlet is time-reversible", "[velocity-verlet]") {
         vec3 force = -k * atom.get_position();
         atom.reset_force_and_torque();
         atom.apply_force(force);
-        atom.integrate_position(dt);
+        atom.integrate_position_and_rotation(dt);
         
         force = -k * atom.get_position();
         atom.reset_force_and_torque();
         atom.apply_force(force);
-        atom.integrate_velocity(dt);
+        atom.integrate_velocity_and_angular_velocity(dt);
     }
 
     // Backward integration (same atom, just use -dt)
@@ -196,12 +196,12 @@ TEST_CASE("Velocity Verlet is time-reversible", "[velocity-verlet]") {
         vec3 force = -k * atom.get_position();
         atom.reset_force_and_torque();
         atom.apply_force(force);
-        atom.integrate_position(-dt);
+        atom.integrate_position_and_rotation(-dt);
         
         force = -k * atom.get_position();
         atom.reset_force_and_torque();
         atom.apply_force(force);
-        atom.integrate_velocity(-dt);
+        atom.integrate_velocity_and_angular_velocity(-dt);
     }
 
     vec3 final_pos = atom.get_position();
