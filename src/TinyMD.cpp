@@ -23,7 +23,7 @@ namespace tinymd {
     void MDSimulator<T>::run() {
         for (m_current_step = 0; m_current_step < m_step_count; ++m_current_step) {
 
-            // Reset forces and torques before recalculating:
+            // Reset forces and torques before calculating:
             for (auto& atom : m_atoms) {
                 atom.reset_force_and_torque();
             }
@@ -36,7 +36,8 @@ namespace tinymd {
                 }
             }
 
-            // Evolve all atom positions using v_n and a_n to get r_n+1 and v_n+1/2:
+            // Evolve all atom's position and rotation using v_n and a_n to get r_n+1 and q_n+1 respectively
+            // while also updating velocity from v_n to v_n+1/2 and angular velocity from omega_n to omega_n+1/2 respectively:
             std::vector<Atom<T>*> to_remove;
             for (auto& atom : m_atoms) {
                 atom.integrate_position_and_rotation(m_delta_time);
@@ -55,12 +56,12 @@ namespace tinymd {
                 }
             }
 
-            // Evolve all atom velocity from v_n+1/2 to v_n+1:
+            // Evolve all atom's velocity and angular velocity from v_n+1/2 to v_n+1 and omega_n+1/2 to omega_n+1 respectively:
             for (auto& atom : m_atoms) {
                 atom.integrate_velocity_and_angular_velocity(m_delta_time);
             }
 
-            // Check for atoms to remove (e.g., if they went out of bounds)
+            // Check for atoms to remove:
             for (auto& atom : m_atoms) {
                 auto status = atom.get_status();
                 if (status != 0) { // Example condition
@@ -81,8 +82,7 @@ namespace tinymd {
                 std::println("Step {}\nNo. of atoms = {}", m_current_step, m_atoms.size());
                 print_atom_states();
             }
-            bool is_export_csv = true;
-            if (is_export_csv && !m_export_path.empty()) {
+            if (m_is_export_csv && !m_export_path.empty()) {
                 export_csv(m_export_path, m_current_step > 0);
             }
         }
@@ -130,8 +130,14 @@ namespace tinymd {
 
     template<tinyla::RealType T>
     void MDSimulator<T>::print_atom_states() const {
+        constexpr uint32_t max_print = 10;
+        uint32_t count = 0;
         for (const auto& atom : m_atoms) {
-            std::println("Atom ID: {}, r = {}, r' = {}, q = {}, omega = {}", atom.get_id(), to_string(atom.get_position()), to_string(atom.get_velocity()), to_string(atom.get_rotation()), to_string(atom.get_angular_velocity_world_frame()));
+            std::println("Atom ID: {}\n\tposition = {}\n\tvelocity = {},\n\trotation (quaternion) = {}\n\tangular velocity = {}", atom.get_id(), to_string(atom.get_position()), to_string(atom.get_velocity()), to_string(atom.get_rotation()), to_string(atom.get_angular_velocity_world_frame()));
+            if (++count >= max_print) {
+                std::println("... ({} more atoms)", m_atoms.size() - max_print);
+                break;
+            }
         }
     }
 

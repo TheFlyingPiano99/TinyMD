@@ -62,6 +62,10 @@ namespace tinymd {
             m_export_path = path;
         }
 
+        void set_export_csv(bool enable) {
+            m_is_export_csv = enable;
+        }
+
     private:
         void interact_atoms(Atom<T>& atom1, Atom<T>& atom2);
         void coulomb_interaction(Atom<T>& atom1, Atom<T>& atom2);
@@ -71,8 +75,10 @@ namespace tinymd {
         uint32_t m_current_step = 0;
         scalar m_delta_time = static_cast<scalar>(0.001);
         bool m_print_debug = true;
+        bool m_is_export_csv = true;
         uint32_t m_print_interval = 100;
         std::string m_export_path;
+        vec3 m_box_dimensions = vec3{100.0, 100.0, 100.0}; // Simulation box dimensions in Bohr radius
     };
 
     template class MDSimulator<double>;

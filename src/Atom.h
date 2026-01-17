@@ -59,7 +59,7 @@ namespace tinymd {
                 m_angular_velocity_body_frame += static_cast<T>(0.5) * angular_acceleration_body_frame * delta_time;
                 clamp_angular_velocity();
                 T ang_velocity_norm = norm(m_angular_velocity_body_frame);
-                constexpr T epsilon = static_cast<T>(1e-8);
+                constexpr T epsilon = static_cast<T>(std::numeric_limits<T>::epsilon());
                 if (ang_velocity_norm > epsilon) {  // Normal case
                     m_rotation_body_to_world = m_rotation_body_to_world * quat{
                         std::cos(ang_velocity_norm * delta_time * static_cast<T>(0.5)),
@@ -223,8 +223,8 @@ namespace tinymd {
         scalar m_effective_radius; // In Bohr radius
         uint32_t m_id;
         static inline uint32_t next_id = 0;
-        static constexpr auto max_velocity = 100.0;
-        static constexpr auto max_angular_velocity = 100.0;
+        static constexpr auto max_velocity = 1000.0;
+        static constexpr auto max_angular_velocity = 1000.0;
     };
 
     template Atom<double>;
