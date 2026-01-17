@@ -169,6 +169,74 @@ TEST_CASE("Free rotation without torque", "[rotation]") {
     REQUIRE(static_cast<double>(norm(q_final)) == Approx(1.0).epsilon(1e-8));
 }
 
+TEST_CASE("Sign reversal of torque should reverse rotation", "[rotation]") {
+    using scalar = double;
+    using vec3 = tinyla::VariableMatrix<scalar, 3, 1>;
+    using quat = tinyla::Quaternion<scalar>;
+
+    vec3 initial_pos = vec3::filled(0.0);
+    vec3 initial_vel = vec3::filled(0.0);
+    scalar mass = 1.0;
+    scalar dt = 0.001;
+
+    Atom<scalar> atom(initial_pos, initial_vel, 1.0 / mass, 1.0);
+
+    vec3 initial_euler = vec3::filled(0.0);
+    initial_euler[2] = 0.1;
+    atom.set_rotation_from_euler_angles(initial_euler);
+    
+    quat initial_rotation = atom.get_rotation();
+    vec3 initial_omega = atom.get_angular_velocity_world_frame();
+
+    // Apply positive torque for some time
+    vec3 torque = vec3::filled(0.0);
+    torque[2] = 2.0;
+
+    int steps = 100;
+    scalar t_total = dt * steps;
+    
+    for (int i = 0; i < steps; ++i) {
+        atom.reset_force_and_torque();
+        atom.apply_torque_in_world_frame(torque);
+        atom.integrate_position_and_rotation(dt);
+        atom.reset_force_and_torque();
+        atom.apply_torque_in_world_frame(torque);
+        atom.integrate_velocity_and_angular_velocity(dt);
+    }
+
+    // Check that we've rotated significantly
+    quat mid_rotation = atom.get_rotation();
+    vec3 mid_euler = atom.get_euler_angles();
+    vec3 mid_omega = atom.get_angular_velocity_world_frame();
+    
+    REQUIRE(std::fabs(static_cast<double>(mid_euler[2]) - 0.1) > 0.01);
+
+    // Now apply opposite torque for the same time period
+    // This should bring angular velocity to zero and add more rotation
+    torque[2] = -2.0;
+    for (int i = 0; i < steps; ++i) {
+        atom.reset_force_and_torque();
+        atom.apply_torque_in_world_frame(torque);
+        atom.integrate_position_and_rotation(dt);
+        atom.reset_force_and_torque();
+        atom.apply_torque_in_world_frame(torque);
+        atom.integrate_velocity_and_angular_velocity(dt);
+    }
+
+    vec3 final_euler = atom.get_euler_angles();
+    vec3 final_omega = atom.get_angular_velocity_world_frame();
+    
+    // Angular velocity should return to initial (zero) - within numerical precision
+    REQUIRE(std::fabs(static_cast<double>(final_omega[2]) - static_cast<double>(initial_omega[2])) < 1e-10);
+    
+    // But rotation should NOT return to initial - it should be:
+    // θ_final = θ_initial + 0.5·α·T² + 0.5·α·T² = θ_initial + α·T²
+    // where α = I_inv * τ = 2.5 * 2.0 = 5.0
+    scalar alpha = 2.5 * 2.0;
+    scalar expected_total_rotation = 0.1 + alpha * t_total * t_total;
+    REQUIRE(static_cast<double>(final_euler[2]) == Approx(expected_total_rotation).epsilon(1e-5));
+}
+
 TEST_CASE("Combined translation and rotation", "[rotation]") {
     using scalar = double;
     using vec3 = tinyla::VariableMatrix<scalar, 3, 1>;
