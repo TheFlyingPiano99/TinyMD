@@ -59,7 +59,7 @@ namespace tinymd {
                 m_angular_velocity_body_frame += static_cast<T>(0.5) * angular_acceleration_body_frame * delta_time;
                 clamp_angular_velocity();
                 T ang_velocity_norm = norm(m_angular_velocity_body_frame);
-                constexpr T epsilon = static_cast<T>(std::numeric_limits<T>::epsilon());
+                constexpr T epsilon = static_cast<T>(1e-8);
                 if (ang_velocity_norm > epsilon) {  // Normal case
                     m_rotation_body_to_world = m_rotation_body_to_world * quat{
                         std::cos(ang_velocity_norm * delta_time * static_cast<T>(0.5)),
@@ -71,6 +71,9 @@ namespace tinymd {
                 else {  // For very small angular velocities, approximate the rotation
                     m_rotation_body_to_world = m_rotation_body_to_world * quat{
                         static_cast<T>(1),
+                        m_angular_velocity_body_frame.x() * delta_time * static_cast<T>(0.5),
+                        m_angular_velocity_body_frame.y() * delta_time * static_cast<T>(0.5),
+                        m_angular_velocity_body_frame.z() * delta_time * static_cast<T>(0.5)                    
                     };
                 }
                 m_rotation_body_to_world = m_rotation_body_to_world / norm(m_rotation_body_to_world);   // Normalize quaternion
