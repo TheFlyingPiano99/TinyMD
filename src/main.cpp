@@ -35,7 +35,7 @@ int main(int argc, char** argv) {
     // Export atom positions to CSV for visualization in Blender
     auto output_dir = std::filesystem::path("E:/coding/CppProjects/TinyMD/output");
     std::filesystem::create_directories(output_dir);
-    auto csv_path = output_dir / "atom_positions.csv";
+    auto csv_path = output_dir / "simulation_data.csv";
     simulator.set_export_path(csv_path.string());
     // Run simulation:
     simulator.run();

@@ -27,14 +27,13 @@ namespace tinymd {
                 m_velocity(velocity),
                 m_force(vec3::filled(static_cast<T>(0))), 
                 m_reciprocal_mass(reciprocal_mass),
-                m_rotation(quat{1, 0, 0, 0}),
+                m_rotation_body_to_world(quat{1, 0, 0, 0}),
                 m_inertia_tensor_body_frame(mat3::identity() * (static_cast<T>(2.0) / static_cast<T>(5.0)) / m_reciprocal_mass),
                 m_inv_inertia_tensor_body_frame(mat3::identity() * (static_cast<T>(5.0) / static_cast<T>(2.0)) * m_reciprocal_mass),
-                m_angular_velocity_world_frame(vec3::filled(static_cast<T>(0))),
+                m_angular_velocity_body_frame(vec3::filled(static_cast<T>(0))),
                 m_torque_world_frame(vec3::filled(static_cast<T>(0))),
                 m_charge(1.0), m_effective_radius(effective_radius), m_id(next_id++)
             {
-                update_world_frame_inv_inertia_tensor();
             };
 
         /*
@@ -45,46 +44,36 @@ namespace tinymd {
         void integrate_position_and_rotation(scalar delta_time) {
             // Translational motion:
             {
-                // Calculate acceleration at time n
                 auto acceleration = m_force * m_reciprocal_mass;
-                
-                // Update velocity (half step): v_n+1/2 = v_n + 1/2 * a_n * dt
                 m_velocity += static_cast<T>(0.5) * acceleration * delta_time;
-                clamp_velocity();   
-                // Update position using half-step velocity: r_n+1 = r_n + v_n+1/2 * dt
+                clamp_velocity();
                 m_position += m_velocity * delta_time;
             }
 
             // Rotational motion:
             {
-                // For gyroscopic term, we need: ω × (I * ω) where I is the inertia tensor
-                // Angular momentum: L = I * ω
-                vec3 angular_momentum = m_inertia_tensor_world_frame * m_angular_velocity_world_frame;
-                
-                // Gyroscopic term: ω × L
-                vec3 gyroscopic_term = cross(m_angular_velocity_world_frame, angular_momentum);
-                
-                // Effective torque including gyroscopic correction: τ_eff = τ - ω × L
-                vec3 effective_torque = m_torque_world_frame - gyroscopic_term;
-                
-                // Calculate angular acceleration: α = I^(-1) * τ_eff
-                vec3 angular_acceleration_world_frame = m_inv_inertia_tensor_world_frame * effective_torque;
-                
-                // Update angular velocity (half step): ω_n+1/2 = ω_n + 1/2 * α_n * dt
-                m_angular_velocity_world_frame += static_cast<T>(0.5) * angular_acceleration_world_frame * delta_time;
+                vec3 torque_body_frame = rotate_vector_by_quaternion(m_torque_world_frame, conjugate(m_rotation_body_to_world));
+                vec3 angular_momentum_body_frame = m_inertia_tensor_body_frame * m_angular_velocity_body_frame;
+                vec3 gyroscopic_torque_body_frame = cross(m_angular_velocity_body_frame, angular_momentum_body_frame);
+                vec3 angular_acceleration_body_frame = m_inv_inertia_tensor_body_frame * (torque_body_frame - gyroscopic_torque_body_frame);
+                m_angular_velocity_body_frame += static_cast<T>(0.5) * angular_acceleration_body_frame * delta_time;
                 clamp_angular_velocity();
-                
-                // Update rotation using quaternion derivative: dq/dt = 1/2 * ω_quat * q
-                // where ω_quat is the angular velocity as a pure quaternion (w=0, v=ω)
-                auto angular_velocity_quat = quat{0, m_angular_velocity_world_frame.x(), m_angular_velocity_world_frame.y(), m_angular_velocity_world_frame.z()};
-                auto q_dot = static_cast<T>(0.5) * angular_velocity_quat * m_rotation;
-                
-                // Integrate rotation: q_n+1 = q_n + dq/dt * dt
-                m_rotation = m_rotation + q_dot * delta_time;
-                
-                // Normalize quaternion
-                m_rotation = m_rotation / norm(m_rotation);
-                update_world_frame_inv_inertia_tensor();
+                T ang_velocity_norm = norm(m_angular_velocity_body_frame);
+                constexpr T epsilon = static_cast<T>(1e-8);
+                if (ang_velocity_norm > epsilon) {  // Normal case
+                    m_rotation_body_to_world = m_rotation_body_to_world * quat{
+                        std::cos(ang_velocity_norm * delta_time * static_cast<T>(0.5)),
+                        (m_angular_velocity_body_frame.x() / ang_velocity_norm) * std::sin(ang_velocity_norm * delta_time * static_cast<T>(0.5)),
+                        (m_angular_velocity_body_frame.y() / ang_velocity_norm) * std::sin(ang_velocity_norm * delta_time * static_cast<T>(0.5)),
+                        (m_angular_velocity_body_frame.z() / ang_velocity_norm) * std::sin(ang_velocity_norm * delta_time * static_cast<T>(0.5))
+                    };
+                }
+                else {  // For very small angular velocities, approximate the rotation
+                    m_rotation_body_to_world = m_rotation_body_to_world * quat{
+                        static_cast<T>(1),
+                    };
+                }
+                m_rotation_body_to_world = m_rotation_body_to_world / norm(m_rotation_body_to_world);   // Normalize quaternion
             }
         }
 
@@ -103,21 +92,11 @@ namespace tinymd {
 
             // Rotational motion:
             {
-                // For gyroscopic term, we need: ω × (I * ω) where I is the inertia tensor
-                // Angular momentum: L = I * ω
-                vec3 angular_momentum = m_inertia_tensor_world_frame * m_angular_velocity_world_frame;
-                
-                // Gyroscopic term: ω × L
-                vec3 gyroscopic_term = cross(m_angular_velocity_world_frame, angular_momentum);
-                
-                // Effective torque including gyroscopic correction: τ_eff = τ - ω × L
-                vec3 effective_torque = m_torque_world_frame - gyroscopic_term;
-                
-                // Calculate angular acceleration: α = I^(-1) * τ_eff
-                vec3 angular_acceleration_world_frame = m_inv_inertia_tensor_world_frame * effective_torque;
-                
-                // Complete velocity update: ω_n+1 = ω_n+1/2 + 1/2 * α_n+1 * dt
-                m_angular_velocity_world_frame += static_cast<T>(0.5) * angular_acceleration_world_frame * delta_time;
+                vec3 torque_body_frame = rotate_vector_by_quaternion(m_torque_world_frame, conjugate(m_rotation_body_to_world));
+                vec3 angular_momentum_body_frame = m_inertia_tensor_body_frame * m_angular_velocity_body_frame;
+                vec3 gyroscopic_torque_body_frame = cross(m_angular_velocity_body_frame, angular_momentum_body_frame);
+                vec3 angular_acceleration_body_frame = m_inv_inertia_tensor_body_frame * (torque_body_frame - gyroscopic_torque_body_frame);
+                m_angular_velocity_body_frame += static_cast<T>(0.5) * angular_acceleration_body_frame * delta_time;
                 clamp_angular_velocity();
             }
         }
@@ -130,9 +109,9 @@ namespace tinymd {
         }
 
         inline void clamp_angular_velocity() {
-            float ang_n = norm(m_angular_velocity_world_frame);
+            float ang_n = norm(m_angular_velocity_body_frame);
             if (ang_n > max_angular_velocity) {
-                m_angular_velocity_world_frame = (m_angular_velocity_world_frame / ang_n) * max_angular_velocity;
+                m_angular_velocity_body_frame = (m_angular_velocity_body_frame / ang_n) * max_angular_velocity;
             }
         }
 
@@ -161,23 +140,19 @@ namespace tinymd {
         }
 
         [[nodiscard]] quat get_rotation() const {
-            return m_rotation;
+            return m_rotation_body_to_world;
         }
 
-        [[nodiscard]] vec3 get_angular_velocity() const {
-            return m_angular_velocity_world_frame;
+        [[nodiscard]] vec3 get_angular_velocity_body_frame() const {
+            return m_angular_velocity_body_frame;
         }
 
         [[nodiscard]] vec3 get_angular_velocity_world_frame() const {
-            return m_angular_velocity_world_frame;
-        }
-
-        [[nodiscard]] vec3 get_angular_momentum_world_frame() const {
-            return m_inertia_tensor_world_frame * m_angular_velocity_world_frame;
+            return m_angular_velocity_body_frame;
         }
 
         [[nodiscard]] vec3 get_euler_angles() const {
-            return vec3::euler_angles(m_rotation);
+            return vec3::euler_angles(m_rotation_body_to_world);
         }
 
         [[nodiscard]] scalar get_mass() const {
@@ -218,42 +193,32 @@ namespace tinymd {
          *               yaw (z): rotation about Z-axis
          */
         void set_rotation_from_euler_angles(const vec3& euler_angles_xyz) {
-            m_rotation = quat::rotation_from_euler_angles(euler_angles_xyz);
+            m_rotation_body_to_world = quat::rotation_from_euler_angles(euler_angles_xyz);
         }
 
         void set_angular_velocity_world_frame(const vec3& omega) {
-            m_angular_velocity_world_frame = omega;
+            m_angular_velocity_body_frame = omega;
         }
 
         void set_inertia_tensor_body_frame(const mat3& I) {
             m_inertia_tensor_body_frame = I;
-            update_world_frame_inv_inertia_tensor();
         }
 
         void set_inv_inertia_tensor_body_frame(const mat3& I_inv) {
             m_inv_inertia_tensor_body_frame = I_inv;
-            update_world_frame_inv_inertia_tensor();
         }
         
     private:
-
-        void update_world_frame_inv_inertia_tensor() {
-            auto rotation_mat = mat3::rotation_matrix(m_rotation);
-            m_inv_inertia_tensor_world_frame = rotation_mat * m_inv_inertia_tensor_body_frame * transpose(rotation_mat);
-            m_inertia_tensor_world_frame = rotation_mat * m_inertia_tensor_body_frame * transpose(rotation_mat);
-        }
 
         vec3 m_position;    // Bohr radius
         vec3 m_velocity;    // Bohr radius per atomic unit of time
         vec3 m_force; // Bohr radius per atomic unit of time squared
         scalar m_reciprocal_mass; // Reciprocal of mass in Hartree atomic units
-        quat m_rotation;    // Orientation as a rotation quaternion
-        vec3 m_angular_velocity_world_frame;    // Radians per atomic unit of time
+        quat m_rotation_body_to_world;    // Orientation as a rotation quaternion
+        vec3 m_angular_velocity_body_frame;    // Radians per atomic unit of time
         vec3 m_torque_world_frame;
         mat3 m_inertia_tensor_body_frame;
         mat3 m_inv_inertia_tensor_body_frame;
-        mat3 m_inertia_tensor_world_frame;
-        mat3 m_inv_inertia_tensor_world_frame;
         scalar m_charge;      // Elementary charge
         scalar m_effective_radius; // In Bohr radius
         uint32_t m_id;

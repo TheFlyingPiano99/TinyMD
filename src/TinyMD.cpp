@@ -131,7 +131,7 @@ namespace tinymd {
     template<tinyla::RealType T>
     void MDSimulator<T>::print_atom_states() const {
         for (const auto& atom : m_atoms) {
-            std::println("Atom ID: {}, r = {}, r' = {}, q = {}, omega = {}", atom.get_id(), to_string(atom.get_position()), to_string(atom.get_velocity()), to_string(atom.get_rotation()), to_string(atom.get_angular_velocity()));
+            std::println("Atom ID: {}, r = {}, r' = {}, q = {}, omega = {}", atom.get_id(), to_string(atom.get_position()), to_string(atom.get_velocity()), to_string(atom.get_rotation()), to_string(atom.get_angular_velocity_world_frame()));
         }
     }
 
@@ -145,21 +145,29 @@ namespace tinymd {
 
         if (!append) {
             // Write header
-            file << "position_x,position_y,position_z,rotation_r,rotation_i,rotation_j,rotation_k,atom_id,simulation_step\n";
+            file << "position_x,position_y,position_z,velocity_x,velocity_y,velocity_z,rotation_r,rotation_i,rotation_j,rotation_k,angular_velocity_x,angular_velocity_y,angular_velocity_z,atom_id,simulation_step\n";
         }
 
         // Write atom positions
         for (const auto& atom : m_atoms) {
             auto pos = atom.get_position();
+            auto vel = atom.get_velocity();
             auto rot = atom.get_rotation();
-            file << std::format("{},{},{},{},{},{},{},{},{}\n", 
+            auto ang_vel = atom.get_angular_velocity_world_frame();
+            file << std::format("{},{},{},{},{},{},{},{},{},{},{},{},{},{},{}\n", 
                 static_cast<double>(pos.eval_at(0, 0)),
                 static_cast<double>(pos.eval_at(1, 0)),
                 static_cast<double>(pos.eval_at(2, 0)),
+                static_cast<double>(vel.eval_at(0, 0)),
+                static_cast<double>(vel.eval_at(1, 0)),
+                static_cast<double>(vel.eval_at(2, 0)),
                 static_cast<double>(rot.eval_at(0, 0)),
                 static_cast<double>(rot.eval_at(1, 0)),
                 static_cast<double>(rot.eval_at(2, 0)),
                 static_cast<double>(rot.eval_at(3, 0)),
+                static_cast<double>(ang_vel.eval_at(0, 0)),
+                static_cast<double>(ang_vel.eval_at(1, 0)),
+                static_cast<double>(ang_vel.eval_at(2, 0)),
                 atom.get_id(),
                 m_current_step
             );
