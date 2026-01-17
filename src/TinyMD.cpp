@@ -123,9 +123,9 @@ namespace tinymd {
         atom2.apply_force(-force);
 
         // Test torque by explicitly applying:
-        double sign = ((m_step_count / 100) % 2 == 0) ? 1.0 : -1.0;
-        atom1.apply_torque_in_world_frame(sign * vec3{0.01, 0.02, 0.03});
-        atom2.apply_torque_in_world_frame(sign * vec3{0.01, 0.02, 0.03});
+        double sign = ((m_current_step / 500) % 2 == 0) ? 1.0 : -1.0;
+        atom1.apply_torque_in_world_frame(sign * vec3{0.01, 0.01, 0.01});
+        atom2.apply_torque_in_world_frame(sign * vec3{0.01, 0.01, 0.01});
     }
 
     template<tinyla::RealType T>
